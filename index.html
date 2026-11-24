@@ -18,6 +18,8 @@
   #fireBtn{position:fixed;right:24px;bottom:60px;width:96px;height:96px;margin:0;padding:0;border-radius:50%;background:rgba(255,110,0,.75);border:3px solid #fff;color:#fff;font-size:18px;font-weight:900;touch-action:none;text-shadow:0 2px 4px rgba(0,0,0,.5)}
   #story{font-size:11px;line-height:1.8;color:#ffb3b3;max-width:620px;margin:0 0 18px}
   #overlay h2{font-size:14px;color:#ffd54f;margin:18px 0 0;font-weight:400}
+  #sprintBtn{position:fixed;left:24px;bottom:60px;width:96px;height:96px;margin:0;padding:0;border-radius:50%;background:rgba(40,150,255,.8);border:3px solid #fff;color:#fff;font-size:10px;font-weight:400;touch-action:none;-webkit-user-select:none;user-select:none;text-shadow:0 2px 4px rgba(0,0,0,.5)}
+  #sprintBtn:disabled{background:rgba(90,90,90,.75);color:#ddd}
   #sprintbar{position:fixed;top:58px;left:12px;width:180px;height:10px;background:rgba(0,0,0,.35);border-radius:6px;overflow:hidden;border:2px solid rgba(255,255,255,.6)}
   #sp{height:100%;width:100%;background:linear-gradient(90deg,#1e88e5,#90caf9)}
   .hidden{display:none !important}
@@ -31,6 +33,7 @@
 <div id="sprintbar"><div id="sp"></div></div>
 <div id="hint">Arrows/WASD move · Shift to run · Space or tap to poke · Walk over the flamethrower to pick it up and it fires until it runs out</div>
 <button id="fireBtn" class="hidden">FIRE</button>
+<button id="sprintBtn" class="hidden">SPRINT</button>
 <div id="overlay">
   <h1 id="ovTitle">Bam Pokes Ants</h1>
   <p id="story">Bam is bored. Bam pokes ants. Bam is allergic to ants. Don't let Bam die.</p>
@@ -42,7 +45,7 @@
 <script>
 const cv=document.getElementById('c'),ctx=cv.getContext('2d');
 const $=id=>document.getElementById(id);
-const hpEl=$('hp'),pokesEl=$('pokes'),bestEl=$('best'),overlay=$('overlay'),startBtn=$('start'),ovTitle=$('ovTitle'),ovText=$('ovText'),fireBtn=$('fireBtn'),spEl=$('sp');
+const hpEl=$('hp'),pokesEl=$('pokes'),bestEl=$('best'),overlay=$('overlay'),startBtn=$('start'),ovTitle=$('ovTitle'),ovText=$('ovText'),fireBtn=$('fireBtn'),spEl=$('sp'),sprintBtn=$('sprintBtn');
 const REACH=58, BITE=24, WALK=190, SPRINT=300, FLAME_HIT=16, JET_LEN=210, GUN_FUEL=5;
 let W,H,DPR,bgCv,S=null,last=performance.now(),best=0;
 const keys={};
@@ -174,7 +177,7 @@ function addMound(){
 function newGame(){
   S={t:0,hp:100,pokes:0,hurt:0,goal:null,target:null,running:true,
      P:{x:W/2,y:H*0.6,vx:0,vy:0,face:0,aim:0,walk:0,swing:0,cool:0},
-     mounds:[],ants:[],parts:[],pickups:[],gun:null,fireTouch:false,nextFlame:5,spawnT:0,stamina:100};
+     mounds:[],ants:[],parts:[],pickups:[],gun:null,fireTouch:false,nextFlame:5,spawnT:0,stamina:100,sprintHeld:false};
   for(let i=0;i<7;i++) addMound();
   hpEl.style.width='100%';
   pokesEl.textContent='Pokes: 0';
@@ -237,7 +240,7 @@ function update(dt){
   S.t+=dt;
   hpEl.style.width=Math.max(0,S.hp)+'%';
   if(S.hp<=0&&!S.dead) startDeath();
-  if(S.dead){ updateDeath(dt); return; }
+  if(S.dead){ sprintBtn.classList.add('hidden'); updateDeath(dt); return; }
   S.hurt=Math.max(0,S.hurt-dt*2.5);
   P.cool-=dt;
   P.swing=Math.max(0,P.swing-dt*3.5);
@@ -272,7 +275,7 @@ function update(dt){
   }
 
   const len=Math.hypot(ix,iy)||1;
-  const sprint=(ix||iy)&&S.stamina>0;
+  const sprint=(ix||iy)&&S.stamina>0&&(S.sprintHeld||keys.ShiftLeft||keys.ShiftRight);
   const sp=sprint?SPRINT:WALK;
   const k=(ix||iy)?sp/len:0;
   const tvx=ix*k,tvy=iy*k;
@@ -290,6 +293,8 @@ function update(dt){
   if(running) S.stamina=Math.max(0,S.stamina-dt*20);
   else S.stamina=Math.min(100,S.stamina+dt*15);
   spEl.style.width=S.stamina+'%';
+  sprintBtn.classList.remove('hidden');
+  sprintBtn.disabled=S.stamina<=0;
   S.runFx=running;
   if(running){
     S.fartT=(S.fartT||0)-dt;
@@ -602,6 +607,10 @@ addEventListener('keydown',e=>{
 });
 addEventListener('keyup',e=>{keys[e.code]=false;});
 
+sprintBtn.addEventListener('pointerdown',e=>{
+  e.preventDefault();
+  if(S) S.sprintHeld=true;
+});
 fireBtn.addEventListener('pointerdown',e=>{
   e.preventDefault();
   if(S) S.fireTouch=true;
@@ -616,7 +625,7 @@ addEventListener('pointermove',e=>{
   if(ptr.down){ptr.x=e.clientX;ptr.y=e.clientY;}
 });
 addEventListener('pointerup',e=>{
-  if(S) S.fireTouch=false;
+  if(S){ S.fireTouch=false; S.sprintHeld=false; }
   if(!ptr.down) return;
   ptr.down=false;
   if(!S||!S.running) return;
