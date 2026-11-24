@@ -51,8 +51,8 @@ let W,H,DPR,bgCv,S=null,last=performance.now(),best=0;
 const keys={};
 let sprintUntil=0;
 const ptr={down:false,x:0,y:0,sx:0,sy:0,t0:0,lastTap:0};
-try{best=+localStorage.getItem('antPokeBest')||0}catch(e){}
-bestEl.textContent='Best: '+best;
+try{best=+localStorage.getItem('bamPokesRate')||0}catch(e){}
+bestEl.textContent='Best: '+best.toFixed(1)+'/min';
 
 /* ---------- sound effects ---------- */
 let actx=null;
@@ -180,7 +180,7 @@ function newGame(){
      mounds:[],ants:[],parts:[],pickups:[],gun:null,fireTouch:false,nextFlame:5,spawnT:0,stamina:100,sprintHeld:false};
   for(let i=0;i<7;i++) addMound();
   hpEl.style.width='100%';
-  pokesEl.textContent='Pokes: 0';
+  refreshScore();
   overlay.classList.add('hidden');
 }
 function startGame(){
@@ -210,7 +210,7 @@ function poke(){
   if(!near||nd>REACH) return;
   near.angry=7; near.spawnT=0.8;
   S.pokes++;
-  pokesEl.textContent='Pokes: '+S.pokes;
+  refreshScore();
   playSfx('sound_4.mp3',0.9,'stir');
   playSfx('sound_6_2.mp3',0.6,'bugs');
   for(let i=0;i<5;i++) spawnAnt(near);
@@ -238,6 +238,7 @@ function burnAnt(a){
 function update(dt){
   const P=S.P;
   S.t+=dt;
+  refreshScore();
   hpEl.style.width=Math.max(0,S.hp)+'%';
   if(S.hp<=0&&!S.dead) startDeath();
   if(S.dead){ sprintBtn.classList.add('hidden'); updateDeath(dt); return; }
@@ -394,6 +395,15 @@ function updateDeath(dt){
   if(S.popped&&S.deathT>=2.2) endGame();
 }
 
+/* score = pokes per minute of survival */
+function scoreRate(){
+  return S&&S.t>1 ? S.pokes/(S.t/60) : 0;
+}
+function refreshScore(){
+  if(!S) return;
+  pokesEl.textContent='Pokes: '+S.pokes+'  ·  '+scoreRate().toFixed(1)+'/min';
+}
+
 function fmt(s){return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
 
 function endGame(){
@@ -402,14 +412,15 @@ function endGame(){
   hpEl.style.width='0%';
   setPanting(false);
   fireBtn.classList.add('hidden');
-  if(S.pokes>best){
-    best=S.pokes;
-    try{localStorage.setItem('antPokeBest',best)}catch(e){}
-    bestEl.textContent='Best: '+best;
+  const rate=scoreRate();
+  if(rate>best){
+    best=rate;
+    try{localStorage.setItem('bamPokesRate',best.toFixed(2))}catch(e){}
+    bestEl.textContent='Best: '+best.toFixed(1)+'/min';
   }
   const secs=Math.floor(S.t);
   ovTitle.textContent='Bam Dead';
-  ovText.textContent='You made '+S.pokes+' poke'+(S.pokes===1?'':'s')+' and lasted '+fmt(secs)+'. Run faster next time.';
+  ovText.textContent='Score: '+rate.toFixed(1)+' pokes per minute ('+S.pokes+' pokes in '+fmt(secs)+'). Run faster next time.';
   startBtn.textContent='Run again';
   overlay.classList.remove('hidden');
 }
