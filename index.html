@@ -232,6 +232,7 @@ function burnAnt(a){
 function update(dt){
   const P=S.P;
   S.t+=dt;
+  hpEl.style.width=Math.max(0,S.hp)+'%';
   if(S.hp<=0&&!S.dead) startDeath();
   if(S.dead){ updateDeath(dt); return; }
   S.hurt=Math.max(0,S.hurt-dt*2.5);
