@@ -16,6 +16,8 @@
   #overlay p{max-width:620px;line-height:1.9;font-size:10px;margin:8px 0}
   button{margin-top:16px;font-size:12px;font-family:inherit;padding:12px 28px;border:0;border-radius:10px;background:#ffd54f;color:#333;font-weight:800;cursor:pointer}
   #fireBtn{position:fixed;right:24px;bottom:60px;width:96px;height:96px;margin:0;padding:0;border-radius:50%;background:rgba(255,110,0,.75);border:3px solid #fff;color:#fff;font-size:18px;font-weight:900;touch-action:none;text-shadow:0 2px 4px rgba(0,0,0,.5)}
+  #story{font-size:11px;line-height:1.8;color:#ffb3b3;max-width:620px;margin:0 0 18px}
+  #overlay h2{font-size:14px;color:#ffd54f;margin:18px 0 0;font-weight:400}
   .hidden{display:none !important}
   #hint{position:fixed;bottom:10px;left:0;right:0;text-align:center;font-size:8px;opacity:.8;pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,.6)}
 </style>
@@ -27,7 +29,9 @@
 <div id="hint">Arrows/WASD move · Shift to run · Space or tap to poke · Walk over the flamethrower to pick it up and it fires until it runs out</div>
 <button id="fireBtn" class="hidden">FIRE</button>
 <div id="overlay">
+  <p id="story">Bam is bored. Bam pokes ants. Bam is allergic to ants. Don't let Bam die.</p>
   <h1 id="ovTitle">Bam Pokes Ants</h1>
+  <h2>Instructions</h2>
   <p id="ovText">Poke the fire ant mounds with your stick, then run like crazy before the swarm gets you.</p>
   <p>Arrows / WASD to move. Shift to run. Space pokes the nearest mound in reach. Pick up a flamethrower when one appears and it fires automatically until it runs out. On touch screens, drag to move, tap a mound to walk over and poke it, and double-tap to sprint for 4 seconds.</p>
   <button id="start">Start</button>
@@ -211,6 +215,8 @@ function burnAnt(a){
 function update(dt){
   const P=S.P;
   S.t+=dt;
+  if(S.hp<=0&&!S.dead) startDeath();
+  if(S.dead){ updateDeath(dt); return; }
   S.hurt=Math.max(0,S.hurt-dt*2.5);
   P.cool-=dt;
   P.swing=Math.max(0,P.swing-dt*3.5);
@@ -329,7 +335,27 @@ function update(dt){
   }
   S.parts=S.parts.filter(p=>p.life>0);
 
-  if(S.hp<=0) endGame();
+}
+
+function startDeath(){
+  S.dead=true; S.deathT=0; S.popped=false; S.goal=null;
+  setPanting(false);
+  stopVoice('bite'); stopVoice('stir'); stopVoice('bugs');
+  playSfx('sound_6_4.mp3',0.9,'dying');
+  fireBtn.classList.add('hidden');
+}
+function updateDeath(dt){
+  S.deathT+=dt;
+  if(!S.popped&&S.deathT>=1.3){
+    S.popped=true;
+    for(let i=0;i<40;i++){
+      const a=rnd(0,6.283), sp=rnd(120,380);
+      S.parts.push({x:S.P.x,y:S.P.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-80,life:rnd(.6,1.2),c:Math.random()<.5?'#e53935':(Math.random()<.5?'#ffcdd2':'#ff8a80')});
+    }
+  }
+  for(const p of S.parts){ p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=500*dt; p.life-=dt; }
+  S.parts=S.parts.filter(p=>p.life>0);
+  if(S.popped&&S.deathT>=2.2) endGame();
 }
 
 function fmt(s){return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
@@ -340,17 +366,13 @@ function endGame(){
   hpEl.style.width='0%';
   setPanting(false);
   fireBtn.classList.add('hidden');
-  stopVoice('bite');
-  stopVoice('stir');
-  stopVoice('bugs');
-  playSfx('sound_6_4.mp3',0.9,'dying');
   if(S.pokes>best){
     best=S.pokes;
     try{localStorage.setItem('antPokeBest',best)}catch(e){}
     bestEl.textContent='Best: '+best;
   }
   const secs=Math.floor(S.t);
-  ovTitle.textContent='Stung!';
+  ovTitle.textContent='Bam popped!';
   ovText.textContent='You made '+S.pokes+' poke'+(S.pokes===1?'':'s')+' and lasted '+fmt(secs)+'. Run faster next time.';
   startBtn.textContent='Run again';
   overlay.classList.remove('hidden');
@@ -441,7 +463,7 @@ function drawFlames(){
 }
 
 function drawGun(){
-  if(!S.gun) return;
+  if(!S.gun||S.dead) return;
   const P=S.P,a=P.face;
   ctx.save();
   ctx.translate(P.x+Math.cos(a)*8,P.y+Math.sin(a)*8);
@@ -457,6 +479,11 @@ function drawGun(){
 
 function drawPlayer(){
   const P=S.P;
+  let sc=1;
+  if(S.dead){
+    if(S.popped) return;
+    sc=1+1.2*Math.min(1,S.deathT/1.3);
+  }
   const moving=Math.hypot(P.vx,P.vy)>25;
   const bob=moving?Math.abs(Math.sin(P.walk))*2:0;
   ctx.fillStyle='rgba(0,0,0,.28)';
@@ -474,6 +501,7 @@ function drawPlayer(){
   ctx.save();
   ctx.translate(P.x,P.y+bob);
   ctx.rotate(P.face);
+  ctx.scale(sc,sc);
   ctx.fillStyle='#2e7dd1';
   ctx.beginPath();ctx.ellipse(0,0,11,9,0,0,Math.PI*2);ctx.fill();
   ctx.fillStyle='#f1c27d';
@@ -485,6 +513,10 @@ function drawPlayer(){
   ctx.beginPath();ctx.arc(3,0,5,0,Math.PI*2);ctx.fill();
   ctx.restore();
 
+  if(S.dead){
+    ctx.fillStyle='rgba(190,0,0,'+(0.6*Math.min(1,S.deathT/1.3))+')';
+    ctx.beginPath();ctx.arc(P.x,P.y+bob,11*sc,0,Math.PI*2);ctx.fill();
+  }
   if(S.hurt>.05){
     ctx.strokeStyle='rgba(255,60,60,'+S.hurt+')';ctx.lineWidth=3;
     ctx.beginPath();ctx.arc(P.x,P.y,16,0,Math.PI*2);ctx.stroke();
