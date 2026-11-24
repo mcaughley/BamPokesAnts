@@ -18,8 +18,8 @@
   #fireBtn{position:fixed;right:24px;bottom:60px;width:96px;height:96px;margin:0;padding:0;border-radius:50%;background:rgba(255,110,0,.75);border:3px solid #fff;color:#fff;font-size:18px;font-weight:900;touch-action:none;text-shadow:0 2px 4px rgba(0,0,0,.5)}
   #story{font-size:11px;line-height:1.8;color:#ffb3b3;max-width:620px;margin:0 0 18px}
   #overlay h2{font-size:14px;color:#ffd54f;margin:18px 0 0;font-weight:400}
-  #sprintBtn{position:fixed;left:24px;bottom:60px;width:96px;height:96px;margin:0;padding:0;border-radius:50%;background:rgba(40,150,255,.8);border:3px solid #fff;color:#fff;font-size:10px;font-weight:400;touch-action:none;text-shadow:0 2px 4px rgba(0,0,0,.5)}
-  #sprintBtn:disabled{background:rgba(90,90,90,.75);color:#ddd}
+  #sprintbar{position:fixed;top:58px;left:12px;width:180px;height:10px;background:rgba(0,0,0,.35);border-radius:6px;overflow:hidden;border:2px solid rgba(255,255,255,.6)}
+  #sp{height:100%;width:100%;background:linear-gradient(90deg,#1e88e5,#90caf9)}
   .hidden{display:none !important}
   #hint{position:fixed;bottom:10px;left:0;right:0;text-align:center;font-size:8px;opacity:.8;pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,.6)}
 </style>
@@ -28,9 +28,9 @@
 <canvas id="c"></canvas>
 <div id="hud"><span id="pokes">Pokes: 0</span><span id="best">Best: 0</span></div>
 <div id="hpbar"><div id="hp"></div></div>
+<div id="sprintbar"><div id="sp"></div></div>
 <div id="hint">Arrows/WASD move · Shift to run · Space or tap to poke · Walk over the flamethrower to pick it up and it fires until it runs out</div>
 <button id="fireBtn" class="hidden">FIRE</button>
-<button id="sprintBtn" class="hidden">SPRINT</button>
 <div id="overlay">
   <h1 id="ovTitle">Bam Pokes Ants</h1>
   <p id="story">Bam is bored. Bam pokes ants. Bam is allergic to ants. Don't let Bam die.</p>
@@ -42,7 +42,7 @@
 <script>
 const cv=document.getElementById('c'),ctx=cv.getContext('2d');
 const $=id=>document.getElementById(id);
-const hpEl=$('hp'),pokesEl=$('pokes'),bestEl=$('best'),overlay=$('overlay'),startBtn=$('start'),ovTitle=$('ovTitle'),ovText=$('ovText'),fireBtn=$('fireBtn'),sprintBtn=$('sprintBtn');
+const hpEl=$('hp'),pokesEl=$('pokes'),bestEl=$('best'),overlay=$('overlay'),startBtn=$('start'),ovTitle=$('ovTitle'),ovText=$('ovText'),fireBtn=$('fireBtn'),spEl=$('sp');
 const REACH=58, BITE=24, WALK=190, SPRINT=300, FLAME_HIT=16, JET_LEN=210, GUN_FUEL=5;
 let W,H,DPR,bgCv,S=null,last=performance.now(),best=0;
 const keys={};
@@ -174,7 +174,7 @@ function addMound(){
 function newGame(){
   S={t:0,hp:100,pokes:0,hurt:0,goal:null,target:null,running:true,
      P:{x:W/2,y:H*0.6,vx:0,vy:0,face:0,aim:0,walk:0,swing:0,cool:0},
-     mounds:[],ants:[],parts:[],pickups:[],gun:null,fireTouch:false,nextFlame:5,spawnT:0,sprintT:0,sprintCD:0};
+     mounds:[],ants:[],parts:[],pickups:[],gun:null,fireTouch:false,nextFlame:5,spawnT:0,stamina:100};
   for(let i=0;i<7;i++) addMound();
   hpEl.style.width='100%';
   pokesEl.textContent='Pokes: 0';
@@ -237,7 +237,7 @@ function update(dt){
   S.t+=dt;
   hpEl.style.width=Math.max(0,S.hp)+'%';
   if(S.hp<=0&&!S.dead) startDeath();
-  if(S.dead){ sprintBtn.classList.add('hidden'); updateDeath(dt); return; }
+  if(S.dead){ updateDeath(dt); return; }
   S.hurt=Math.max(0,S.hurt-dt*2.5);
   P.cool-=dt;
   P.swing=Math.max(0,P.swing-dt*3.5);
@@ -272,16 +272,7 @@ function update(dt){
   }
 
   const len=Math.hypot(ix,iy)||1;
-  if(S.sprintT>0){
-    S.sprintT-=dt;
-    if(S.sprintT<=0){ S.sprintT=0; S.sprintCD=8; }
-  }else if(S.sprintCD>0){
-    S.sprintCD=Math.max(0,S.sprintCD-dt);
-  }
-  sprintBtn.classList.remove('hidden');
-  sprintBtn.disabled=S.sprintT>0||S.sprintCD>0;
-  sprintBtn.textContent=S.sprintT>0?'RUN '+Math.ceil(S.sprintT):S.sprintCD>0?'WAIT '+Math.ceil(S.sprintCD):'SPRINT';
-  const sprint=keys.ShiftLeft||keys.ShiftRight||S.sprintT>0;
+  const sprint=(ix||iy)&&S.stamina>0;
   const sp=sprint?SPRINT:WALK;
   const k=(ix||iy)?sp/len:0;
   const tvx=ix*k,tvy=iy*k;
@@ -296,6 +287,9 @@ function update(dt){
   }
   setPanting(sprint&&moving);
   const running=sprint&&moving;
+  if(running) S.stamina=Math.max(0,S.stamina-dt*20);
+  else S.stamina=Math.min(100,S.stamina+dt*15);
+  spEl.style.width=S.stamina+'%';
   S.runFx=running;
   if(running){
     S.fartT=(S.fartT||0)-dt;
@@ -410,7 +404,6 @@ function endGame(){
   }
   const secs=Math.floor(S.t);
   ovTitle.textContent='Bam Dead';
-  sprintBtn.classList.add('hidden');
   ovText.textContent='You made '+S.pokes+' poke'+(S.pokes===1?'':'s')+' and lasted '+fmt(secs)+'. Run faster next time.';
   startBtn.textContent='Run again';
   overlay.classList.remove('hidden');
@@ -609,9 +602,6 @@ addEventListener('keydown',e=>{
 });
 addEventListener('keyup',e=>{keys[e.code]=false;});
 
-sprintBtn.addEventListener('click',()=>{
-  if(S&&S.running&&S.sprintT<=0&&S.sprintCD<=0) S.sprintT=4;
-});
 fireBtn.addEventListener('pointerdown',e=>{
   e.preventDefault();
   if(S) S.fireTouch=true;
