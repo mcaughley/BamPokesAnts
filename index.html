@@ -415,25 +415,20 @@ function refreshScore(){
   pokesEl.textContent='Pokes: '+S.pokes+'  ·  '+scoreRate().toFixed(1)+'/min';
 }
 
-/* ---------- shared leaderboard (db capability) ---------- */
-let db=null;
+/* ---------- shared leaderboard (Supabase) ---------- */
+const SB_URL='https://cvpctfeycevzgofsatjy.supabase.co';
+const SB_KEY='sb_publishable_UQxwTVA3NxF0RjsgL1lhHQ_33wlAaeC';
 const entryEl=$('entry'), nameIn=$('nameIn'), boardEl=$('board');
-try{
-  if(window.claude&&typeof claude.use==='function'){
-    claude.use('db').then(d=>{ if(d){ db=d; watchBoard(); } }).catch(()=>{});
-  }
-}catch(e){}
-function watchBoard(){
+async function loadBoard(){
   try{
-    db.collection('scores').orderBy('rate','desc').limit(5).onSnapshot(snap=>{
-      const docs=(snap&&snap.docs)?snap.docs:(Array.isArray(snap)?snap:[]);
-      renderBoard(docs.map(d=>(typeof d.data==='function'?d.data():d)||{}));
-    });
+    const r=await fetch(SB_URL+'/rest/v1/scores?select=name,rate&order=rate.desc&limit=5',{headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY}});
+    if(!r.ok) return;
+    renderBoard(await r.json());
   }catch(e){}
 }
 function renderBoard(rows){
   boardEl.textContent='';
-  if(!rows.length) return;
+  if(!rows||!rows.length) return;
   const h=document.createElement('div');
   h.textContent='TOP SCORES (pokes/min)';
   boardEl.appendChild(h);
@@ -443,13 +438,17 @@ function renderBoard(rows){
     boardEl.appendChild(row);
   });
 }
-function submitScore(name){
-  if(!db||!S) return;
+async function submitScore(name){
+  if(!S) return;
   try{
-    const id=Date.now()+'-'+Math.random().toString(36).slice(2,7);
-    db.doc('scores/'+id).set({name:name,rate:Number(scoreRate().toFixed(2)),pokes:S.pokes,secs:Math.floor(S.t)});
+    await fetch(SB_URL+'/rest/v1/scores',{method:'POST',
+      headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY,'Content-Type':'application/json',Prefer:'return=minimal'},
+      body:JSON.stringify({name:name.slice(0,12),rate:Number(scoreRate().toFixed(2)),pokes:S.pokes,secs:Math.floor(S.t)})});
+    loadBoard();
   }catch(e){}
 }
+loadBoard();
+setInterval(loadBoard,30000);
 $('saveBtn').addEventListener('click',()=>{
   const name=(nameIn.value||'').trim()||'Bam';
   submitScore(name);
