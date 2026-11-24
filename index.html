@@ -57,7 +57,7 @@ function ensureAudio(){
     if(!actx){
       actx=new (window.AudioContext||window.webkitAudioContext)();
       bufs['fart.gen']=makeFartBuf();
-      ['sound_2.mp3','sound_3.mp3','sound_4.mp3','sound_5.mp3','sound_6_1.mp3','sound_6_2.mp3','sound_6_3.mp3','sound_6_4.mp3','fart_death.mp3','pop.mp3'].forEach(f=>{
+      ['sound_2.mp3','sound_3.mp3','sound_4.mp3','sound_5.mp3','sound_6_1.mp3','sound_6_2.mp3','sound_6_3.mp3','sound_6_4.mp3','fart_death.mp3','pop.mp3','fart_run.mp3'].forEach(f=>{
         fetch('sounds/'+f).then(r=>r.arrayBuffer()).then(ab=>actx.decodeAudioData(ab)).then(b=>{bufs[f]=b;}).catch(()=>{});
       });
     }
@@ -287,7 +287,7 @@ function update(dt){
   S.runFx=running;
   if(running){
     S.fartT=(S.fartT||0)-dt;
-    if(S.fartT<=0){ playSfx('fart.gen',0.8,'fart'); S.fartT=rnd(1.1,1.8); }
+    if(S.fartT<=0){ playSfx('fart_run.mp3',0.8,'fart'); S.fartT=rnd(1.1,1.8); }
   }else S.fartT=0;
 
   /* flamethrower pickups and firing */
