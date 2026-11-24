@@ -434,7 +434,7 @@ function renderBoard(rows){
   boardEl.textContent='';
   if(!rows||!rows.length) return;
   const h=document.createElement('div');
-  h.textContent='TOP SCORES (pokes/min)';
+  h.textContent='HIGH SCORES';
   boardEl.appendChild(h);
   rows.forEach((r,i)=>{
     const row=document.createElement('div');
