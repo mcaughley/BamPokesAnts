@@ -425,11 +425,31 @@ function refreshScore(){
   pokesEl.textContent='Pokes: '+S.pokes+'  ·  '+scoreRate().toFixed(1)+'/min';
 }
 
-/* ---------- shared leaderboard (Supabase) ---------- */
+/* ---------- shared leaderboard ---------- */
+/* Inside Claude artifacts the built-in db is used. Elsewhere (GitHub Pages) scores go to Supabase. */
 const SB_URL='https://cvpctfeycevzgofsatjy.supabase.co';
 const SB_KEY='sb_publishable_UQxwTVA3NxF0RjsgL1lhHQ_33wlAaeC';
 const entryEl=$('entry'), nameIn=$('nameIn'), boardEl=$('board');
+let db=null, dbPokes=null, dbRate=null;
+function docsOf(snap){
+  const docs=(snap&&snap.docs)?snap.docs:(Array.isArray(snap)?snap:[]);
+  return docs.map(d=>(typeof d.data==='function'?d.data():d)||{});
+}
+try{
+  if(window.claude&&typeof claude.use==='function'){
+    claude.use('db').then(d=>{
+      if(!d) return;
+      db=d;
+      try{
+        db.collection('scores').orderBy('pokes','desc').limit(5).onSnapshot(snap=>{ dbPokes=docsOf(snap); drawDb(); });
+        db.collection('scores').orderBy('rate','desc').limit(5).onSnapshot(snap=>{ dbRate=docsOf(snap); drawDb(); });
+      }catch(e){}
+    }).catch(()=>{});
+  }
+}catch(e){}
+function drawDb(){ if(dbPokes&&dbRate) renderBoard(dbPokes,dbRate); }
 async function loadBoard(){
+  if(db) return;
   try{
     const h={apikey:SB_KEY,Authorization:'Bearer '+SB_KEY};
     const get=q=>fetch(SB_URL+'/rest/v1/scores?select=name,rate,pokes&limit=5&'+q,{headers:h}).then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); });
@@ -475,10 +495,18 @@ function renderBoard(pokeRows,rateRows){
 }
 async function submitScore(name){
   if(!S) return;
+  const data={name:name.slice(0,12),rate:Number(scoreRate().toFixed(2)),pokes:S.pokes,secs:Math.floor(S.t)};
+  if(db){
+    try{
+      const id=Date.now()+'-'+Math.random().toString(36).slice(2,7);
+      db.doc('scores/'+id).set(data);
+    }catch(e){}
+    return;
+  }
   try{
     await fetch(SB_URL+'/rest/v1/scores',{method:'POST',
       headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY,'Content-Type':'application/json',Prefer:'return=minimal'},
-      body:JSON.stringify({name:name.slice(0,12),rate:Number(scoreRate().toFixed(2)),pokes:S.pokes,secs:Math.floor(S.t)})});
+      body:JSON.stringify(data)});
     loadBoard();
   }catch(e){}
 }
