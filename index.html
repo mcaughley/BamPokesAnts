@@ -26,6 +26,8 @@
   #sp{height:100%;width:100%;background:linear-gradient(90deg,#1e88e5,#90caf9)}
   #nameIn{font-family:inherit;font-size:12px;padding:8px;border-radius:6px;border:0;width:200px;text-align:center}
   #board:empty{display:none}
+  #howBtn{font-size:11px;padding:8px 12px;margin:6px 0 2px;background:#2a1010;color:#ffd54f;border:2px solid #ffd54f;cursor:pointer;font-family:inherit}
+  #howto{margin-top:6px}
   #board{margin:14px auto;width:min(340px,100%);display:flex;flex-direction:column;gap:14px}
   #board .bx{font-size:16px;line-height:2;padding:12px 16px;box-sizing:border-box;color:#ffe082;background:rgba(0,0,0,.6);border:4px double #ffd54f;box-shadow:0 0 0 3px #b71c1c,0 0 18px rgba(255,213,79,.55)}
   #board .bxh{color:#ffd54f;margin-bottom:6px}
@@ -44,10 +46,12 @@
 <div id="overlay">
   <div id="card">
   <h1 id="ovTitle">Bam Pokes Ants</h1>
+  <p id="ovText">Poke the fire ant mounds, then run before the swarm gets you.</p>
+  <button id="howBtn" type="button">How to play</button>
+  <div id="howto" class="hidden">
   <p id="story">Bam is bored. Bam pokes ants. Bam is allergic to ants. Don't let Bam die.</p>
-  <h2>Instructions</h2>
-  <p id="ovText">Poke the fire ant mounds with your stick, then run like crazy before the swarm gets you.</p>
   <p>Arrows / WASD to move. Shift to run. Space pokes the nearest mound in reach. Pick up a flamethrower when one appears and it fires automatically until it runs out. On touch screens, drag to move, tap a mound to walk over and poke it, and tap SPRINT to turn sprinting on or off. Hold SPRINT to sprint only while you hold it.</p>
+  </div>
   <div id="entry" class="hidden"><input id="nameIn" maxlength="12" placeholder="Your name"> <button id="saveBtn">Save score</button></div>
   <div id="board"></div>
   <button id="start">Start</button>
@@ -428,10 +432,16 @@ const entryEl=$('entry'), nameIn=$('nameIn'), boardEl=$('board');
 async function loadBoard(){
   try{
     const h={apikey:SB_KEY,Authorization:'Bearer '+SB_KEY};
-    const get=q=>fetch(SB_URL+'/rest/v1/scores?select=name,rate,pokes&limit=5&'+q,{headers:h}).then(r=>r.ok?r.json():[]);
+    const get=q=>fetch(SB_URL+'/rest/v1/scores?select=name,rate,pokes&limit=5&'+q,{headers:h}).then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); });
     const [pokeRows,rateRows]=await Promise.all([get('order=pokes.desc,rate.desc'),get('order=rate.desc,pokes.desc')]);
     renderBoard(pokeRows,rateRows);
-  }catch(e){}
+  }catch(e){
+    boardEl.textContent='';
+    const box=document.createElement('div');
+    box.className='bx';
+    box.textContent='Scores unavailable right now';
+    boardEl.appendChild(box);
+  }
 }
 function renderBoard(pokeRows,rateRows){
   boardEl.textContent='';
@@ -439,8 +449,10 @@ function renderBoard(pokeRows,rateRows){
     ['MOST POKES',pokeRows,'pokes',v=>String(Math.round(Number(v)||0))],
     ['MOST AGGRESSIVE',rateRows,'rate',v=>(Number(v)||0).toFixed(1)]
   ];
+  let shown=0;
   blocks.forEach(([title,rows,key,fmtV])=>{
     if(!rows||!rows.length) return;
+    shown++;
     const box=document.createElement('div');
     box.className='bx';
     const h=document.createElement('div');
@@ -454,6 +466,12 @@ function renderBoard(pokeRows,rateRows){
     });
     boardEl.appendChild(box);
   });
+  if(!shown){
+    const box=document.createElement('div');
+    box.className='bx';
+    box.textContent='No scores yet';
+    boardEl.appendChild(box);
+  }
 }
 async function submitScore(name){
   if(!S) return;
@@ -733,6 +751,7 @@ addEventListener('pointerup',e=>{
 });
 
 startBtn.addEventListener('click',startGame);
+$('howBtn').addEventListener('click',()=>$('howto').classList.toggle('hidden'));
 addEventListener('resize',resize);
 resize();
 requestAnimationFrame(frame);
