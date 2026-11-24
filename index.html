@@ -18,8 +18,9 @@
   #fireBtn{position:fixed;right:24px;bottom:60px;width:96px;height:96px;margin:0;padding:0;border-radius:50%;background:rgba(255,110,0,.75);border:3px solid #fff;color:#fff;font-size:18px;font-weight:900;touch-action:none;text-shadow:0 2px 4px rgba(0,0,0,.5)}
   #story{font-size:11px;line-height:1.8;color:#ffb3b3;max-width:620px;margin:0 0 18px}
   #overlay h2{font-size:14px;color:#ffd54f;margin:18px 0 0;font-weight:400}
-  #sprintBtn{position:fixed;left:24px;bottom:60px;width:96px;height:96px;margin:0;padding:0;border-radius:50%;background:rgba(40,150,255,.8);border:3px solid #fff;color:#fff;font-size:10px;font-weight:400;touch-action:none;-webkit-user-select:none;user-select:none;text-shadow:0 2px 4px rgba(0,0,0,.5)}
-  #sprintBtn:disabled{background:rgba(90,90,90,.75);color:#ddd}
+  #sprintBtn{position:fixed;left:24px;bottom:60px;width:120px;height:120px;margin:0;padding:0;border-radius:50%;background:rgba(40,150,255,.8);border:3px solid #fff;color:#fff;font-size:11px;font-weight:400;touch-action:none;-webkit-user-select:none;user-select:none;text-shadow:0 2px 4px rgba(0,0,0,.5)}
+  #sprintBtn.on{background:rgba(255,120,40,.9);border-color:#ffe08a}
+  #sprintBtn.empty{background:rgba(90,90,90,.75);color:#ddd}
   #sprintbar{position:fixed;top:58px;left:12px;width:180px;height:10px;background:rgba(0,0,0,.35);border-radius:6px;overflow:hidden;border:2px solid rgba(255,255,255,.6)}
   #sp{height:100%;width:100%;background:linear-gradient(90deg,#1e88e5,#90caf9)}
   #nameIn{font-family:inherit;font-size:12px;padding:8px;border-radius:6px;border:0;width:200px;text-align:center}
@@ -41,7 +42,7 @@
   <p id="story">Bam is bored. Bam pokes ants. Bam is allergic to ants. Don't let Bam die.</p>
   <h2>Instructions</h2>
   <p id="ovText">Poke the fire ant mounds with your stick, then run like crazy before the swarm gets you.</p>
-  <p>Arrows / WASD to move. Shift to run. Space pokes the nearest mound in reach. Pick up a flamethrower when one appears and it fires automatically until it runs out. On touch screens, drag to move, tap a mound to walk over and poke it, and double-tap to sprint for 4 seconds.</p>
+  <p>Arrows / WASD to move. Shift to run. Space pokes the nearest mound in reach. Pick up a flamethrower when one appears and it fires automatically until it runs out. On touch screens, drag to move, tap a mound to walk over and poke it, and tap SPRINT to turn sprinting on or off. Hold SPRINT to sprint only while you hold it.</p>
   <div id="entry" class="hidden"><input id="nameIn" maxlength="12" placeholder="Your name"> <button id="saveBtn">Save score</button></div>
   <div id="board"></div>
   <button id="start">Start</button>
@@ -181,7 +182,7 @@ function addMound(){
 function newGame(){
   S={t:0,hp:100,pokes:0,hurt:0,goal:null,target:null,running:true,
      P:{x:W/2,y:H*0.6,vx:0,vy:0,face:0,aim:0,walk:0,swing:0,cool:0},
-     mounds:[],ants:[],parts:[],pickups:[],gun:null,fireTouch:false,nextFlame:5,spawnT:0,stamina:100,sprintHeld:false};
+     mounds:[],ants:[],parts:[],pickups:[],gun:null,fireTouch:false,nextFlame:5,spawnT:0,stamina:100,sprintHeld:false,sprintOn:false};
   for(let i=0;i<7;i++) addMound();
   hpEl.style.width='100%';
   refreshScore();
@@ -281,7 +282,7 @@ function update(dt){
   }
 
   const len=Math.hypot(ix,iy)||1;
-  const sprint=(ix||iy)&&S.stamina>0&&(S.sprintHeld||keys.ShiftLeft||keys.ShiftRight);
+  const sprint=(ix||iy)&&S.stamina>0&&(S.sprintHeld||S.sprintOn||keys.ShiftLeft||keys.ShiftRight);
   const sp=sprint?SPRINT:WALK;
   const k=(ix||iy)?sp/len:0;
   const tvx=ix*k,tvy=iy*k;
@@ -298,9 +299,14 @@ function update(dt){
   const running=sprint&&moving;
   if(running) S.stamina=Math.max(0,S.stamina-dt*20);
   else S.stamina=Math.min(100,S.stamina+dt*15);
+  if(S.stamina<=0) S.sprintOn=false;
   spEl.style.width=S.stamina+'%';
   sprintBtn.classList.remove('hidden');
-  sprintBtn.disabled=S.stamina<=0;
+  const sprintActive=(S.sprintOn||S.sprintHeld)&&S.stamina>0;
+  const lbl=S.stamina<=0?'RECHARGE':(sprintActive?'STOP':'SPRINT');
+  if(sprintBtn.textContent!==lbl) sprintBtn.textContent=lbl;
+  sprintBtn.classList.toggle('on',sprintActive);
+  sprintBtn.classList.toggle('empty',S.stamina<=0);
   S.runFx=running;
   if(running){
     S.fartT=(S.fartT||0)-dt;
@@ -665,10 +671,22 @@ addEventListener('keydown',e=>{
 });
 addEventListener('keyup',e=>{keys[e.code]=false;});
 
+let sprintDownAt=0;
 sprintBtn.addEventListener('pointerdown',e=>{
   e.preventDefault();
-  if(S) S.sprintHeld=true;
+  try{sprintBtn.setPointerCapture(e.pointerId);}catch(_){}
+  sprintDownAt=performance.now();
+  if(S&&S.running&&S.stamina>0) S.sprintHeld=true;
 });
+sprintBtn.addEventListener('pointerup',e=>{
+  e.preventDefault();
+  if(S&&S.running&&performance.now()-sprintDownAt<250&&S.stamina>0) S.sprintOn=!S.sprintOn;
+  if(S) S.sprintHeld=false;
+});
+const sprintRelease=()=>{ if(S) S.sprintHeld=false; };
+sprintBtn.addEventListener('pointercancel',sprintRelease);
+sprintBtn.addEventListener('lostpointercapture',sprintRelease);
+addEventListener('pointercancel',()=>{ if(S){ S.fireTouch=false; S.sprintHeld=false; } });
 fireBtn.addEventListener('pointerdown',e=>{
   e.preventDefault();
   if(S) S.fireTouch=true;
